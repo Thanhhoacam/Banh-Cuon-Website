@@ -20,13 +20,10 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "any" },
-      {
-        url: "https://cdn-icons-png.freepik.com/512/5235/5235253.png",
-        type: "image/png",
-      },
+      { url: "/default-food.png", type: "image/png" },
     ],
     shortcut: "/favicon.ico",
-    apple: "https://cdn-icons-png.freepik.com/512/5235/5235253.png",
+    apple: "/default-food.png",
   },
 };
 
