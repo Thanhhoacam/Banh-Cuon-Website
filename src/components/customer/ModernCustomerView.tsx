@@ -189,7 +189,7 @@ export default function ModernCustomerView() {
           <Link href="/" className="inline-block">
             <h1 className="text-4xl font-bold text-gray-800 mb-2 hover:text-orange-600 transition-colors duration-300 cursor-pointer">
               <Image
-                src="/default-food.png"
+                src="https://cdn-icons-png.freepik.com/512/5235/5235253.png"
                 alt="Bánh Cuốn Cậu Cả"
                 width={100}
                 height={100}
@@ -244,7 +244,10 @@ export default function ModernCustomerView() {
                           <CardContent className="p-2 sm:p-3">
                             <div className="flex gap-2 sm:gap-3">
                               <Image
-                                src={f.imageUrl || "/default-food.png"}
+                                src={
+                                  f.imageUrl ||
+                                  "https://cdn-icons-png.freepik.com/512/5235/5235253.png"
+                                }
                                 alt={f.name}
                                 width={50}
                                 height={50}
