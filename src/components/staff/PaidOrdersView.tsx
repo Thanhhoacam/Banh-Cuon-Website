@@ -12,14 +12,7 @@ import {
 } from "firebase/firestore";
 import { format } from "date-fns";
 
-import {
-  Order,
-  OrderItem,
-  FirestoreOrder,
-  Payment,
-  Food,
-  FirestoreFood,
-} from "@/types";
+import { OrderItem, Payment, Food, FirestoreFood } from "@/types";
 
 export default function PaidOrdersView() {
   const qc = useQueryClient();

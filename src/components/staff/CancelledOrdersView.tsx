@@ -10,7 +10,6 @@ import {
   query,
   orderBy,
 } from "firebase/firestore";
-import { format } from "date-fns";
 
 import { Order, OrderItem, FirestoreOrder } from "@/types";
 

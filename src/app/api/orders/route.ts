@@ -1,100 +1,114 @@
 import { NextResponse } from "next/server";
-import { connectMongo } from "@/mongodb";
-import { Order } from "@/models/Order";
-import { Food } from "@/models/Food";
+import { db } from "@/lib/firebase";
+import {
+  collection,
+  getDocs,
+  addDoc,
+  updateDoc,
+  doc,
+  query,
+  orderBy,
+} from "firebase/firestore";
 
 export async function GET() {
-  await connectMongo();
-  const orders = await Order.find().sort({ createdAt: -1 }).lean();
-  return NextResponse.json(orders);
+  try {
+    const ordersSnapshot = await getDocs(
+      query(collection(db, "orders"), orderBy("createdAt", "desc"))
+    );
+    const orders = ordersSnapshot.docs.map((doc) => ({
+      _id: doc.id,
+      ...doc.data(),
+    }));
+    return NextResponse.json(orders);
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to fetch orders" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
-  await connectMongo();
-  const body = await request.json();
-  const items = body.items as { food: string; quantity: number }[];
+  try {
+    const body = await request.json();
+    const items = body.items as {
+      food: string;
+      quantity: number;
+      price: number;
+    }[];
 
-  const foods = await Food.find({ _id: { $in: items.map((i) => i.food) } });
-  const priceById = new Map(foods.map((f) => [f._id.toString(), f.price]));
-  const enriched = items.map((i) => ({
-    food: i.food,
-    quantity: i.quantity,
-    price: priceById.get(i.food) ?? 0,
-  }));
-  const total = enriched.reduce((s, i) => s + i.quantity * i.price, 0);
+    // Calculate total from items (prices should already be included)
+    const total = items.reduce((s, i) => s + i.quantity * i.price, 0);
 
-  const created = await Order.create({
-    tableNumber: body.tableNumber,
-    items: enriched,
-    note: body.note,
-    total,
-    status: "pending",
-  });
-  if (global.io) {
-    global.io.emit("order:new", created);
-    global.io.to(`table:${created.tableNumber}`).emit("order:update", created);
+    const orderData = {
+      tableNumber: body.tableNumber,
+      items: items,
+      note: body.note || "",
+      total,
+      status: "pending",
+      createdAt: new Date(),
+    };
+
+    const docRef = await addDoc(collection(db, "orders"), orderData);
+    const created = { _id: docRef.id, ...orderData };
+
+    if (global.io) {
+      global.io.emit("order:new", created);
+      global.io
+        .to(`table:${created.tableNumber}`)
+        .emit("order:update", created);
+    }
+    return NextResponse.json(created, { status: 201 });
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to create order" },
+      { status: 500 }
+    );
   }
-  return NextResponse.json(created, { status: 201 });
 }
 
 export async function PATCH(request: Request) {
-  await connectMongo();
-  const body = await request.json();
-  const { orderId, status } = body;
+  try {
+    const body = await request.json();
+    const { orderId, status } = body;
 
-  if (!orderId || !status) {
-    return NextResponse.json(
-      { error: "Missing orderId or status" },
-      { status: 400 }
-    );
-  }
-
-  if (status === "cancelled") {
-    // Cancel all orders for this table
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (!orderId || !status) {
+      return NextResponse.json(
+        { error: "Missing orderId or status" },
+        { status: 400 }
+      );
     }
 
-    // Update all orders for this table to cancelled
-    const result = await Order.updateMany(
-      {
-        tableNumber: order.tableNumber,
-        status: { $in: ["pending", "preparing"] },
-      },
-      { status: "cancelled" }
-    );
+    const orderRef = doc(db, "orders", orderId);
+
+    if (status === "cancelled") {
+      // For cancellation, we'll update the specific order
+      await updateDoc(orderRef, { status: "cancelled" });
+
+      if (global.io) {
+        global.io.emit("order:cancelled", { orderId });
+        global.io.emit("order:update", { _id: orderId, status: "cancelled" });
+      }
+
+      return NextResponse.json({
+        message: "Order cancelled successfully",
+        orderId: orderId,
+      });
+    }
+
+    // For other status updates
+    await updateDoc(orderRef, { status });
+    const updatedOrder = { _id: orderId, status };
 
     if (global.io) {
-      global.io.emit("order:cancelled", { tableNumber: order.tableNumber });
-      global.io
-        .to(`table:${order.tableNumber}`)
-        .emit("order:update", { status: "cancelled" });
+      global.io.emit("order:update", updatedOrder);
     }
 
-    return NextResponse.json({
-      message: "Orders cancelled successfully",
-      cancelledCount: result.modifiedCount,
-    });
+    return NextResponse.json(updatedOrder);
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to update order" },
+      { status: 500 }
+    );
   }
-
-  // For other status updates
-  const updatedOrder = await Order.findByIdAndUpdate(
-    orderId,
-    { status },
-    { new: true }
-  );
-
-  if (!updatedOrder) {
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  }
-
-  if (global.io) {
-    global.io.emit("order:update", updatedOrder);
-    global.io
-      .to(`table:${updatedOrder.tableNumber}`)
-      .emit("order:update", updatedOrder);
-  }
-
-  return NextResponse.json(updatedOrder);
 }

@@ -1,8 +1,9 @@
 import mongoose from "mongoose";
 
 declare global {
-  // eslint-disable-next-line no-var
-  var mongooseConn: { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null } | undefined;
+  var mongooseConn:
+    | { conn: typeof mongoose | null; promise: Promise<typeof mongoose> | null }
+    | undefined;
 }
 
 const MONGODB_URI = process.env.MONGODB_URI as string;
@@ -30,5 +31,3 @@ export async function connectMongo(): Promise<typeof mongoose> {
   global.mongooseConn.conn = await global.mongooseConn.promise;
   return global.mongooseConn.conn;
 }
-
-

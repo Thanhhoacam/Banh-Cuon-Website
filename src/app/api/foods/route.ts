@@ -1,16 +1,32 @@
 import { NextResponse } from "next/server";
-import { connectMongo } from "@/mongodb";
-import { Food } from "@/models/Food";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, addDoc } from "firebase/firestore";
 
 export async function GET() {
-  await connectMongo();
-  const foods = await Food.find().lean();
-  return NextResponse.json(foods);
+  try {
+    const foodsSnapshot = await getDocs(collection(db, "foods"));
+    const foods = foodsSnapshot.docs.map((doc) => ({
+      _id: doc.id,
+      ...doc.data(),
+    }));
+    return NextResponse.json(foods);
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to fetch foods" },
+      { status: 500 }
+    );
+  }
 }
 
 export async function POST(request: Request) {
-  await connectMongo();
-  const body = await request.json();
-  const created = await Food.create(body);
-  return NextResponse.json(created, { status: 201 });
+  try {
+    const body = await request.json();
+    const docRef = await addDoc(collection(db, "foods"), body);
+    return NextResponse.json({ _id: docRef.id, ...body }, { status: 201 });
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to create food" },
+      { status: 500 }
+    );
+  }
 }
